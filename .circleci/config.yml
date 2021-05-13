@@ -1,131 +1,44 @@
+# Use the latest 2.1 version of CircleCI pipeline process engine. 
+# See: https://circleci.com/docs/2.0/configuration-reference
 version: 2.1
 
-workspace_root: &workspace_root /tmp/workspace
-config_dir: &config_dir ./config
-tool_repo_dir: &tool_repo_dir ./tool
-leaderboard_repo_dir: &leaderboard_repo_dir ./leaderboard
-result_dir: &result_dir ./result
-yarnpkg_cache_dir: &yarnpkg_cache_dir ./.cache/yarn
+orbs:
+  # The Node.js orb contains a set of prepackaged CircleCI configuration you can utilize
+  # Orbs reduce the amount of configuration required for common tasks. 
+  # See the orb documentation here: https://circleci.com/developer/orbs/orb/circleci/node
+  node: circleci/node@4.1
 
-cond_filters_main: &cond_filters_main
-  branches:
-    only: main
-
-executors:
-  node_executor:
-    working_directory: *workspace_root
-    docker:
-      - image: circleci/node:15.14.0-stretch
-
-  node_with_browsers_executor:
-    working_directory: *workspace_root
-    docker:
-      - image: circleci/node:15.14.0-stretch-browsers
-
-commands:
-  run_steps_restore_workspace:
-    steps:
-      - attach_workspace:
-          at: *workspace_root
-      - run: pwd
-      - run: ls -al
-
-  run_steps_prepare_repository:
-    steps:
-      - run:
-          name: Install dependencies and build
-          environment:
-            TOOL_REPO_DIR: *tool_repo_dir
-          command: |
-            pushd ${TOOL_REPO_DIR}
-            yarn
-            yarn build
-            popd
 
 jobs:
-  prepare:
-    executor: node_executor
+  # Below is the definition of your job to build and test your app, you can rename and customize it as you want.
+  build-and-test:  
+    # These next lines define a Docker executor: https://circleci.com/docs/2.0/executor-types/
+    # You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
+    # A list of available CircleCI Docker Convenience Images are available here: https://circleci.com/developer/images/image/cimg/node
+    docker:
+      - image: cimg/node:15.1
+    # Then run your tests!
+    # CircleCI will report the results back to your VCS provider.
     steps:
-      - run_steps_restore_workspace
-      - checkout:
-          path: *tool_repo_dir
-      - run_steps_prepare_repository
+      # Checkout the code as the first step.
+      - checkout
+      # Next, the node orb's install-packages step will install the dependencies from a package.json.
+      # The orb install-packages step will also automatically cache them for faster future runs.
+      - node/install-packages
+      # If you are using yarn instead npm, remove the line above and uncomment the two lines below.
+      # - node/install-packages:
+      #     pkg-manager: yarn 
       - run:
-          environment:
-            CONFIG_DIR: *config_dir
-            TOOL_REPO_DIR: *tool_repo_dir
-          command: |
-            mkdir -p ${CONFIG_DIR}
-            node ${TOOL_REPO_DIR}/tools/create_config_local_json.mjs > ${CONFIG_DIR}/local.json
-            node ${TOOL_REPO_DIR}/tools/fetch_competitors.mjs > ${CONFIG_DIR}/competitors.json
-      - persist_to_workspace:
-          root: *workspace_root
-          paths:
-            - *config_dir
-
-  measure:
-    executor: node_with_browsers_executor
-    parameters:
-      targetGroup:
-        type: integer
-      parallelCount:
-        type: integer
-    steps:
-      - run_steps_restore_workspace
-      - checkout:
-          path: *tool_repo_dir
-      - run_steps_prepare_repository
-      - run:
-          name: Copy configurations
-          environment:
-            CONFIG_DIR: *config_dir
-            TOOL_REPO_DIR: *tool_repo_dir
-          command: |
-            cp ${CONFIG_DIR}/local.json ${TOOL_REPO_DIR}/config/local.json
-            cp ${CONFIG_DIR}/competitors.json ${TOOL_REPO_DIR}/competitors.json
-      - run:
-          name: Measure
-          environment:
-            RESULT_DIR: *result_dir
-            TOOL_REPO_DIR: *tool_repo_dir
-            MASK_PATH: 'true'
-            TARGET_GROUP: << parameters.targetGroup >>
-            PARALLEL_COUNT: << parameters.parallelCount >>
-          command: |
-            pushd ${TOOL_REPO_DIR}
-            yarn --silent scoring competitors.json > scores.json
-            popd
-            mkdir -p ${RESULT_DIR}
-            cp ${TOOL_REPO_DIR}/scores.json ${RESULT_DIR}/scores-${TARGET_GROUP}.json
-            exit 1
-      - persist_to_workspace:
-          root: *workspace_root
-          paths:
-            - *result_dir
+          name: Run tests
+          command: npm test
 
 workflows:
-  version: 2
-  scoring:
-    # triggers:
-    #   - schedule:
-    #     cron: "0 0 * * *"
-    #     filters:
-    #       <<: *cond_filters_main
+  # Below is the definition of your workflow.
+  # Inside the workflow, you provide the jobs you want to run, e.g this workflow runs the build-and-test job above.
+  # CircleCI will run this workflow on every commit.
+  # For more details on extending your workflow, see the configuration docs: https://circleci.com/docs/2.0/configuration-reference/#workflows
+  sample: 
     jobs:
-      - prepare:
-          filters:
-            <<: *cond_filters_main
-      - measure:
-          requires:
-            - prepare
-          parallelCount: 5
-          matrix:
-            parameters:
-              targetGroup: [0, 1, 2, 3, 4]
-          filters:
-            <<: *cond_filters_main
-      - push:
-          requires:
-            - measure
-          filters:
-            <<: *cond_filters_main
+      - build-and-test
+      # For running simple node tests, you could optionally use the node/test job from the orb to replicate and replace the job above in fewer lines.
+      # - node/test

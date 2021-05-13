@@ -49,7 +49,7 @@ async function measurePage(
   port: number,
 ): Promise<LighthouseScore> {
   const settings = {
-    logLevel: 'error',
+    logLevel: 'verbose',
     output: 'json',
     onlyCategories: ['performance'],
     onlyAudits: [

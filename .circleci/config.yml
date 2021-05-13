@@ -118,6 +118,7 @@ workflows:
       - measure:
           requires:
             - prepare
+          parallelCount: 1
           matrix:
             parameters:
               targetGroup: [0]

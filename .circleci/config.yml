@@ -97,44 +97,11 @@ jobs:
             popd
             mkdir -p ${RESULT_DIR}
             cp ${TOOL_REPO_DIR}/scores.json ${RESULT_DIR}/scores-${TARGET_GROUP}.json
+            exit 1
       - persist_to_workspace:
           root: *workspace_root
           paths:
             - *result_dir
-
-  push:
-    executor: node_executor
-    steps:
-      - run_steps_restore_workspace
-      - checkout:
-          path: *tool_repo_dir
-      - run:
-          name: Concat results
-          environment:
-            RESULT_DIR: *result_dir
-            TOOL_REPO_DIR: *tool_repo_dir
-          command: |
-            node ${TOOL_REPO_DIR}/tools/concat_scores.mjs > ${RESULT_DIR}/scores.json
-      - run:
-          name: Push results
-          environment:
-            LEADERBOARD_REPO_DIR: *leaderboard_repo_dir
-            RESULT_DIR: *result_dir
-          command: |
-            git clone -q --depth 1 https://${GITHUB_PERSONAL_TOKEN}@github.com/CyberAgentHack/web-speed-hackathon-leaderboard.git ${LEADERBOARD_REPO_DIR}
-            cp ${RESULT_DIR}/scores.json ${LEADERBOARD_REPO_DIR}/scores.json
-
-            pushd ${LEADERBOARD_REPO_DIR}
-
-            git config credential.helper 'cache --timeout=120'
-            git config user.email "26074199+circleci[bot]@users.noreply.github.com"
-            git config user.name "Leaderboard Bot"
-
-            git add scores.json
-            git commit -m "Update scores"
-            git push -q https://${GITHUB_PERSONAL_TOKEN}@github.com/CyberAgentHack/web-speed-hackathon-leaderboard.git main
-
-            popd
 
 workflows:
   version: 2
